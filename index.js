@@ -15,13 +15,15 @@ const transporter = nodemailer.createTransport({
 
 async function forwardToOpenClaw(email) {
   try {
+    console.log('Sending to:', process.env.OPENCLAW_URL);
+    console.log('Token:', process.env.HOOKS_TOKEN);
     const response = await fetch(process.env.OPENCLAW_URL, {
       method: 'POST',
       headers: {
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${process.env.HOOKS_TOKEN}`,
-  'x-openclaw-token': process.env.HOOKS_TOKEN
-},
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.HOOKS_TOKEN}`,
+        'x-openclaw-token': process.env.HOOKS_TOKEN
+      },
       body: JSON.stringify({
         message: `You received an email.\nFrom: ${email.from}\nSubject: ${email.subject}\nMessage: ${email.text}\n\nReply to this email when done.`,
         name: "Email",
@@ -33,6 +35,7 @@ async function forwardToOpenClaw(email) {
 
     const text = await response.text();
     console.log(`OpenClaw response (${response.status}): ${text}`);
+    console.log(`Retry-After header: ${response.headers.get('retry-after')}`);
 
     try {
       return JSON.parse(text);
