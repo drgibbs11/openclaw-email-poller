@@ -3,15 +3,6 @@ const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
 const fetch = require('node-fetch');
 
-const imap = new Imap({
-  user: process.env.ZOHO_EMAIL,
-  password: process.env.ZOHO_APP_PASSWORD,
-  host: process.env.IMAP_HOST,
-  port: parseInt(process.env.IMAP_PORT),
-  tls: true,
-  tlsOptions: { rejectUnauthorized: false }
-});
-
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -28,14 +19,25 @@ async function forwardToOpenClaw(email) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.CLAWDBOT_GATEWAY_TOKEN}`
+        'x-openclaw-token': process.env.HOOKS_TOKEN
       },
       body: JSON.stringify({
         message: `You received an email.\nFrom: ${email.from}\nSubject: ${email.subject}\nMessage: ${email.text}\n\nReply to this email when done.`,
-        replyTo: email.from
+        name: "Email",
+        wakeMode: "now",
+        deliver: true,
+        channel: "last"
       })
     });
-    return await response.json();
+
+    const text = await response.text();
+    console.log(`OpenClaw response (${response.status}): ${text}`);
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { response: text };
+    }
   } catch (err) {
     console.error('Error forwarding to OpenClaw:', err);
     return null;
@@ -58,7 +60,7 @@ async function sendReply(to, subject, body) {
 
 function checkMail() {
   console.log('Checking for new mail...');
-  
+
   const imapConnection = new Imap({
     user: process.env.ZOHO_EMAIL,
     password: process.env.ZOHO_APP_PASSWORD,
