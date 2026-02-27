@@ -18,9 +18,10 @@ async function forwardToOpenClaw(email) {
     const response = await fetch(process.env.OPENCLAW_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-openclaw-token': process.env.HOOKS_TOKEN
-      },
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${process.env.HOOKS_TOKEN}`,
+  'x-openclaw-token': process.env.HOOKS_TOKEN
+},
       body: JSON.stringify({
         message: `You received an email.\nFrom: ${email.from}\nSubject: ${email.subject}\nMessage: ${email.text}\n\nReply to this email when done.`,
         name: "Email",
