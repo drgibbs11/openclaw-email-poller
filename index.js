@@ -81,37 +81,48 @@ function checkMail() {
         imapConnection.end();
         return;
       }
+
       imapConnection.search(['UNSEEN'], (err, results) => {
         if (err || !results || !results.length) {
           console.log('No new messages');
           imapConnection.end();
           return;
         }
+
         console.log(`Found ${results.length} unread message(s)`);
+
         const f = imapConnection.fetch(results, { bodies: '' });
+
         f.on('message', (msg) => {
           let uid;
+
           msg.on('body', (stream) => {
             simpleParser(stream, async (err, parsed) => {
               if (err) {
                 console.error('Error parsing email:', err);
                 return;
               }
+
               console.log(`Processing email from: ${parsed.from.text}`);
+
               const reply = await forwardToOpenClaw({
                 from: parsed.from.text,
                 subject: parsed.subject,
                 text: parsed.text
               });
-              if (reply) {
+
+              if (reply && reply.response && reply.response !== 'Auth required') {
                 await sendReply(
                   parsed.from.text,
                   parsed.subject,
-                  reply.response || reply.message || JSON.stringify(reply)
+                  reply.response
                 );
+              } else {
+                console.log('Skipping reply - invalid or empty response from OpenClaw');
               }
             });
           });
+
           msg.once('attributes', (attrs) => {
             uid = attrs.uid;
             imapConnection.addFlags(uid, ['\\Seen'], (err) => {
@@ -119,6 +130,7 @@ function checkMail() {
             });
           });
         });
+
         f.once('end', () => {
           console.log('Done processing messages');
           imapConnection.end();
