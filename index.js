@@ -15,8 +15,6 @@ const transporter = nodemailer.createTransport({
 
 async function forwardToOpenClaw(email) {
   try {
-    console.log('Sending to:', process.env.OPENCLAW_URL);
-    console.log('Token:', process.env.HOOKS_TOKEN);
     const response = await fetch(process.env.OPENCLAW_URL, {
       method: 'POST',
       headers: {
@@ -25,17 +23,19 @@ async function forwardToOpenClaw(email) {
         'x-openclaw-token': process.env.HOOKS_TOKEN
       },
       body: JSON.stringify({
-        message: `You received an email.\nFrom: ${email.from}\nSubject: ${email.subject}\nMessage: ${email.text}\n\nReply to this email when done.`,
-        name: "Email",
-        wakeMode: "now",
-        deliver: true,
-        channel: "last"
+        text: `Email from: ${email.from}\nSubject: ${email.subject}\n\n${email.text}`
       })
     });
 
     const text = await response.text();
     console.log(`OpenClaw response (${response.status}): ${text}`);
     console.log(`Retry-After header: ${response.headers.get('retry-after')}`);
+
+    // If auth failed, log and don't reply to sender
+    if (response.status === 401 || response.status === 403) {
+      console.error('OpenClaw auth failed. Check HOOKS_TOKEN.');
+      return null;
+    }
 
     try {
       return JSON.parse(text);
@@ -73,7 +73,6 @@ function checkMail() {
     tls: true,
     tlsOptions: { rejectUnauthorized: false }
   });
-
   imapConnection.once('ready', () => {
     imapConnection.openBox('INBOX', false, (err) => {
       if (err) {
@@ -111,7 +110,8 @@ function checkMail() {
                 text: parsed.text
               });
 
-              if (reply && reply.response && reply.response !== 'Auth required') {
+              // Only send reply if we got a valid response (not null and not empty)
+              if (reply && reply.response && reply.response !== 'Auth Required') {
                 await sendReply(
                   parsed.from.text,
                   parsed.subject,
